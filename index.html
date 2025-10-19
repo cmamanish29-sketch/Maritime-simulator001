@@ -1,130 +1,177 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>SC001 - Night Collision Avoidance Simulator</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>SC001 - Night Collision Avoidance</title>
   <style>
-    body {
-      margin: 0;
-      overflow: hidden;
-      background: radial-gradient(#001f3f, #000);
-      font-family: Arial, sans-serif;
-      color: white;
-      text-align: center;
-    }
-    #ui {
-      position: absolute;
-      top: 10px;
-      left: 50%;
-      transform: translateX(-50%);
-      z-index: 10;
-    }
-    button {
-      margin: 5px;
-      padding: 10px 20px;
-      background-color: #0055aa;
-      color: white;
-      border: none;
-      border-radius: 8px;
-      cursor: pointer;
-    }
-    button:hover {
-      background-color: #0077cc;
-    }
+    html,body{height:100%;margin:0;background:#041622;color:#e6f6ff;font-family:Inter,Arial,Helvetica,sans-serif;overflow:hidden}
+    #three-root{position:fixed;inset:0;z-index:0}
+    #ui{position:absolute;left:12px;top:12px;z-index:10;background:rgba(2,20,30,0.7);padding:10px;border-radius:8px}
+    #ui button, #ui input{margin:4px;padding:6px 8px;border-radius:6px;border:none;cursor:pointer}
+    #status {display:inline-block;margin-left:8px;font-weight:700;color:#bff0ff}
+    footer{position:absolute;left:0;right:0;bottom:6px;text-align:center;color:#8ed9e6;font-size:13px;z-index:10}
   </style>
 </head>
 <body>
+  <div id="three-root"></div>
+
   <div id="ui">
-    <button id="startBtn">Start Scenario</button>
-    <button id="portBtn">Turn Port</button>
-    <button id="starboardBtn">Turn Starboard</button>
-    <button id="stopBtn">Stop</button>
+    <div style="font-weight:700;margin-bottom:6px">SC001 — Night Collision Avoidance</div>
+    <button id="viewBtn">Switch to Chase View</button>
+    <button id="radarBtn">Toggle Radar</button><br/>
+    <label style="width:60px;display:inline-block">Heading</label>
+    <button id="hdLeft">&lt;5°</button>
+    <button id="hdRight">5°&gt;</button><br/>
+    <label style="width:60px;display:inline-block">Speed</label>
+    <input id="spd" type="range" min="0" max="25" value="12" />
+    <span id="spdVal">12 kn</span><br/>
+    Status: <span id="status">Monitoring</span>
   </div>
 
+  <footer>Prototype simulator • Deploy to GitHub Pages • Then link from Glide</footer>
+
+  <!-- ==== Use ES Modules with full CDN URLs (no bare specifiers) ==== -->
   <script type="module">
-    import * as THREE from 'https://unpkg.com/three@0.164.1/build/three.module.js';
-    import { OrbitControls } from 'https://unpkg.com/three@0.164.1/examples/jsm/controls/OrbitControls.js';
+    // NOTE: these are full ES module URLs - DO NOT change to "three" or bare specifiers
+    import * as THREE from 'https://unpkg.com/three@0.152.2/build/three.module.js';
+    import { OrbitControls } from 'https://unpkg.com/three@0.152.2/examples/jsm/controls/OrbitControls.js';
 
-    // Scene setup
+    // Scene + renderer
+    const root = document.getElementById('three-root');
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x000010);
-
-    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-    camera.position.set(0, 3, 10);
+    scene.background = new THREE.Color(0x041622);
 
     const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setPixelRatio(window.devicePixelRatio || 1);
     renderer.setSize(window.innerWidth, window.innerHeight);
-    document.body.appendChild(renderer.domElement);
+    root.appendChild(renderer.domElement);
 
-    const controls = new OrbitControls(camera, renderer.domElement);
+    // Cameras
+    const cameraPOV = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 5000);
+    const cameraChase = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 5000);
+    let activeCam = cameraPOV;
 
     // Lights
-    const ambient = new THREE.AmbientLight(0x404040);
-    scene.add(ambient);
-    const directional = new THREE.DirectionalLight(0xffffff, 1);
-    directional.position.set(10, 10, 10);
-    scene.add(directional);
+    scene.add(new THREE.HemisphereLight(0xf0f8ff, 0x080820, 0.6));
+    const moon = new THREE.DirectionalLight(0xcfeefe, 0.8);
+    moon.position.set(-100, 200, 100);
+    scene.add(moon);
 
-    // Sea surface
-    const seaGeometry = new THREE.PlaneGeometry(100, 100, 50, 50);
-    const seaMaterial = new THREE.MeshPhongMaterial({ color: 0x001133, wireframe: false });
-    const sea = new THREE.Mesh(seaGeometry, seaMaterial);
-    sea.rotation.x = -Math.PI / 2;
-    scene.add(sea);
+    // Ocean (simple plane)
+    const oceanGeom = new THREE.PlaneGeometry(5000, 5000, 32, 32);
+    const oceanMat = new THREE.MeshStandardMaterial({ color: 0x012633, metalness: 0.05, roughness: 0.9 });
+    const ocean = new THREE.Mesh(oceanGeom, oceanMat);
+    ocean.rotation.x = -Math.PI / 2;
+    scene.add(ocean);
 
-    // Ship
-    const shipGeometry = new THREE.BoxGeometry(1, 0.5, 3);
-    const shipMaterial = new THREE.MeshPhongMaterial({ color: 0xaaaaaa });
-    const ship = new THREE.Mesh(shipGeometry, shipMaterial);
-    ship.position.set(0, 0.25, 0);
+    // Simple ship (group)
+    const ship = new THREE.Group();
+    const hull = new THREE.Mesh(new THREE.BoxGeometry(14, 4, 48), new THREE.MeshStandardMaterial({ color: 0x2b3a4a }));
+    hull.position.y = 3; ship.add(hull);
+    const bridge = new THREE.Mesh(new THREE.BoxGeometry(8, 3, 8), new THREE.MeshStandardMaterial({ color: 0x2f3940 }));
+    bridge.position.set(0, 6, 6); ship.add(bridge);
+    // nav lights
+    const red = new THREE.Mesh(new THREE.SphereGeometry(0.35), new THREE.MeshBasicMaterial({ color: 0xff0000 })); red.position.set(-3,6,18); ship.add(red);
+    const green = new THREE.Mesh(new THREE.SphereGeometry(0.35), new THREE.MeshBasicMaterial({ color: 0x00ff22 })); green.position.set(3,6,18); ship.add(green);
     scene.add(ship);
 
     // Target vessel
-    const targetGeometry = new THREE.BoxGeometry(1, 0.5, 3);
-    const targetMaterial = new THREE.MeshPhongMaterial({ color: 0xff3333 });
-    const target = new THREE.Mesh(targetGeometry, targetMaterial);
-    target.position.set(10, 0.25, -10);
+    const target = new THREE.Group();
+    const th = new THREE.Mesh(new THREE.BoxGeometry(12, 3, 36), new THREE.MeshStandardMaterial({ color: 0x5b3a3a }));
+    th.position.y = 2; target.add(th);
+    target.position.set(600,0,-400);
     scene.add(target);
 
-    let shipSpeed = 0;
-    let targetSpeed = 0.02;
+    // Controls (only for chase view)
+    const controls = new OrbitControls(cameraChase, renderer.domElement);
+    controls.target.copy(ship.position);
+    cameraChase.position.set(ship.position.x - 120, 60, ship.position.z - 160);
+    cameraPOV.position.set(ship.position.x, 8, ship.position.z + 14);
 
-    // Button actions
-    document.getElementById("startBtn").onclick = () => {
-      shipSpeed = 0.05;
-    };
-    document.getElementById("portBtn").onclick = () => {
-      ship.rotation.y += 0.1;
-    };
-    document.getElementById("starboardBtn").onclick = () => {
-      ship.rotation.y -= 0.1;
-    };
-    document.getElementById("stopBtn").onclick = () => {
-      shipSpeed = 0;
-    };
+    // Simulation state
+    let speedKn = 12;
+    let headingRad = Math.PI / 2; // 90° -> east
+    let currentView = 'pov';
+    let radarOn = true;
+
+    const knToMs = k => k * 0.514444;
+
+    // CPA helper (2D)
+    function relativeCPA(us, vs){
+      const rx = vs.x - us.x, rz = vs.z - us.z;
+      const vx = vs.vx - us.vx, vz = vs.vz - us.vz;
+      const v2 = vx*vx + vz*vz;
+      if(v2 === 0) return {cpa: Math.hypot(rx,rz), tcpa: 0};
+      const tca = -(rx*vx + rz*vz) / v2;
+      const tcpa = Math.max(0, tca);
+      const cpx = rx + vx*tcpa, cpz = rz + vz*tcpa;
+      return {cpa: Math.hypot(cpx,cpz), tcpa};
+    }
 
     // Animation loop
-    function animate() {
+    let last = performance.now();
+    function animate(now){
+      const dt = (now - last)/1000; last = now;
+      // update ship motion
+      const v = knToMs(speedKn);
+      const ux = Math.cos(headingRad) * v;
+      const uz = Math.sin(headingRad) * v;
+      ship.position.x += ux * dt;
+      ship.position.z += -uz * dt; // z axis invert for scene orientation
+      ship.rotation.y = -headingRad + Math.PI/2;
+
+      // move target using its own heading (simple)
+      const tHeading = headingRad - 0.6;
+      const tv = knToMs(speedKn * 1.1);
+      target.position.x += Math.cos(tHeading) * tv * dt;
+      target.position.z += -Math.sin(tHeading) * tv * dt;
+
+      // cameras
+      if(currentView === 'pov'){
+        cameraPOV.position.set(ship.position.x, ship.position.y + 8, ship.position.z + 14);
+        const lookAt = new THREE.Vector3(ship.position.x + Math.cos(headingRad)*200, 6, ship.position.z - Math.sin(headingRad)*200);
+        cameraPOV.lookAt(lookAt);
+      } else {
+        // chase camera trails behind
+        cameraChase.position.lerp(new THREE.Vector3(ship.position.x - 120, ship.position.y + 60, ship.position.z - 160), 0.06);
+        cameraChase.lookAt(ship.position);
+        controls.update();
+      }
+
+      // compute CPA for status
+      const us = {x: ship.position.x, z: ship.position.z, vx: ux, vz: -uz};
+      const vs = {x: target.position.x, z: target.position.z, vx: Math.cos(tHeading)*tv, vz: -Math.sin(tHeading)*tv};
+      const cpaInfo = relativeCPA(us, vs);
+      const cpaNm = cpaInfo.cpa / 1852;
+      const tcpa = Math.round(cpaInfo.tcpa);
+      const statusEl = document.getElementById('status');
+      if(cpaNm < 0.3 && tcpa < 600) statusEl.textContent = '⚠️ Collision Risk';
+      else statusEl.textContent = 'Monitoring';
+
+      renderer.render(scene, currentView === 'pov' ? cameraPOV : cameraChase);
       requestAnimationFrame(animate);
-
-      // Move ship forward
-      ship.position.x -= Math.sin(ship.rotation.y) * shipSpeed;
-      ship.position.z -= Math.cos(ship.rotation.y) * shipSpeed;
-
-      // Move target vessel
-      target.position.x -= targetSpeed * 0.8;
-      target.position.z += targetSpeed;
-
-      controls.update();
-      renderer.render(scene, camera);
     }
-    animate();
+    requestAnimationFrame(animate);
 
-    window.addEventListener('resize', () => {
-      camera.aspect = window.innerWidth / window.innerHeight;
-      camera.updateProjectionMatrix();
+    // UI handlers (use exact IDs)
+    document.getElementById('hdLeft').onclick = () => { headingRad += (5 * Math.PI/180); };
+    document.getElementById('hdRight').onclick = () => { headingRad -= (5 * Math.PI/180); };
+    document.getElementById('viewBtn').onclick = () => {
+      currentView = currentView === 'pov' ? 'chase' : 'pov';
+      document.getElementById('viewBtn').textContent = currentView === 'pov' ? 'Switch to Chase View' : 'Switch to POV View';
+    };
+    document.getElementById('radarBtn').onclick = () => { radarOn = !radarOn; document.getElementById('radarBtn').textContent = radarOn ? 'Toggle Radar' : 'Radar Off'; };
+    document.getElementById('spd').addEventListener('input', (e) => {
+      speedKn = Number(e.target.value);
+      document.getElementById('spdVal').textContent = speedKn + ' kn';
+    });
+
+    // Resize
+    window.addEventListener('resize', ()=>{
       renderer.setSize(window.innerWidth, window.innerHeight);
+      cameraPOV.aspect = window.innerWidth / window.innerHeight; cameraPOV.updateProjectionMatrix();
+      cameraChase.aspect = window.innerWidth / window.innerHeight; cameraChase.updateProjectionMatrix();
     });
   </script>
 </body>
