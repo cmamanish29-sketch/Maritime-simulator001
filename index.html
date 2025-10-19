@@ -5,173 +5,191 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>SC001 - Night Collision Avoidance</title>
   <style>
-    body {
+    html, body {
       margin: 0;
-      font-family: 'Segoe UI', sans-serif;
+      padding: 0;
+      height: 100%;
       background-color: #041622;
-      color: #e0f0f5;
+      color: #fff;
+      font-family: "Segoe UI", Roboto, sans-serif;
       overflow: hidden;
     }
-
-    #hud {
+    #overlay {
       position: absolute;
-      top: 15px;
-      left: 15px;
-      padding: 15px;
-      background: rgba(0, 0, 0, 0.5);
-      border-radius: 10px;
-      box-shadow: 0 0 10px #002d40;
+      top: 10px;
+      left: 10px;
+      background: rgba(0,0,0,0.6);
+      padding: 12px 16px;
+      border-radius: 8px;
     }
-
-    button, input[type="range"] {
-      margin: 4px;
+    #overlay h2 {
+      font-size: 1rem;
+      margin: 0 0 6px;
+    }
+    button {
+      margin: 2px;
       padding: 6px 10px;
+      background: #1976d2;
       border: none;
-      border-radius: 5px;
+      color: #fff;
+      border-radius: 6px;
       cursor: pointer;
     }
-
-    button {
-      background: #0a4560;
-      color: #fff;
-      transition: background 0.2s;
-    }
-
     button:hover {
-      background: #0d6286;
+      background: #2196f3;
     }
-
+    .label {
+      display: inline-block;
+      width: 70px;
+    }
+    #spd { width: 100px; }
+    #status {
+      font-weight: 600;
+      margin-left: 4px;
+    }
     #three-root {
       position: fixed;
       top: 0;
       left: 0;
       width: 100%;
       height: 100%;
-      z-index: -1;
+      z-index: 0;
     }
-
-    #radar {
+    footer {
       position: absolute;
-      top: 15px;
-      right: 15px;
-      width: 200px;
-      height: 200px;
-      background: rgba(0, 50, 60, 0.3);
-      border-radius: 10px;
-      border: 2px solid #0d6286;
-    }
-
-    #footer {
-      position: absolute;
-      bottom: 10px;
-      left: 20px;
-      font-size: 12px;
-      color: #88b9c2;
+      bottom: 6px;
+      width: 100%;
+      text-align: center;
+      font-size: 0.8rem;
+      color: #8fdfff;
     }
   </style>
 </head>
 <body>
-  <div id="hud">
-    <h2>SC001 - Night Collision Avoidance</h2>
-    <button id="viewBtn">Switch to Chase View</button>
-    <button id="radarBtn">Toggle Radar</button><br />
-    Heading:
-    <button id="hdLeft">&lt;5°</button>
-    <button id="hdRight">5°&gt;</button><br />
-    Speed: <input id="spd" type="range" min="0" max="25" step="1" value="12" />
-    <span id="spdVal">12 kn</span><br />
-    Autopilot: <button id="autoBtn">Off</button><br />
-    Status: <strong id="status">Monitoring</strong>
-  </div>
-
-  <div id="radar"></div>
   <div id="three-root"></div>
-  <div id="footer">
-    Prototype simulator • Host on GitHub Pages or Netlify • Integrate with LMS/Glide via link
+
+  <div id="overlay">
+    <h2>SC001 - Night Collision Avoidance</h2>
+    <div>
+      <button id="viewBtn">Switch to Chase View</button>
+      <button id="radarBtn">Toggle Radar</button>
+    </div>
+    <div>
+      <span class="label">Heading:</span>
+      <button id="hdLeft">&lt;5°</button>
+      <button id="hdRight">5°&gt;</button>
+    </div>
+    <div>
+      <span class="label">Speed:</span>
+      <input type="range" id="spd" min="0" max="30" value="12" />
+      <span id="spdVal">12 kn</span>
+    </div>
+    <div>
+      <span class="label">Autopilot:</span>
+      <button id="autoBtn">Off</button>
+    </div>
+    <div>
+      Status: <span id="status">Monitoring</span>
+    </div>
   </div>
 
-  <!-- Load Three.js & OrbitControls from CDN -->
-  <script src="https://unpkg.com/three@0.152.2/build/three.min.js"></script>
-  <script src="https://unpkg.com/three@0.152.2/examples/js/controls/OrbitControls.js"></script>
+  <footer>
+    Prototype simulator • Host on GitHub Pages or Netlify • Integrate with LMS/Glide via link
+  </footer>
 
-  <script>
-    const root = document.getElementById('three-root');
+  <!-- === Main 3D logic === -->
+  <script type="module">
+    import * as THREE from 'https://unpkg.com/three@0.152.2/build/three.module.js';
+    import { OrbitControls } from 'https://unpkg.com/three@0.152.2/examples/jsm/controls/OrbitControls.js';
+
+    // Scene setup
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x041622);
 
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.setPixelRatio(window.devicePixelRatio);
-    root.appendChild(renderer.domElement);
+    renderer.setPixelRatio(window.devicePixelRatio || 1);
+    document.getElementById('three-root').appendChild(renderer.domElement);
 
+    // Cameras
     const cameraPOV = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 5000);
     const cameraChase = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 5000);
     let activeCam = cameraPOV;
 
-    const hemiLight = new THREE.HemisphereLight(0xf0f8ff, 0x080820, 0.6);
-    scene.add(hemiLight);
-
+    // Lights
+    scene.add(new THREE.HemisphereLight(0xf0f8ff, 0x080820, 0.6));
     const dirLight = new THREE.DirectionalLight(0xcfeefe, 0.8);
     dirLight.position.set(-100, 200, 100);
     scene.add(dirLight);
 
-    // Ocean plane
-    const oceanGeom = new THREE.PlaneGeometry(5000, 5000, 64, 64);
-    const oceanMat = new THREE.MeshStandardMaterial({ color: 0x012633, metalness: 0.1, roughness: 0.8 });
-    const ocean = new THREE.Mesh(oceanGeom, oceanMat);
+    // Ocean
+    const ocean = new THREE.Mesh(
+      new THREE.PlaneGeometry(5000, 5000, 64, 64),
+      new THREE.MeshStandardMaterial({ color: 0x012633, metalness: 0.1, roughness: 0.8 })
+    );
     ocean.rotation.x = -Math.PI / 2;
     scene.add(ocean);
 
-    // Ship
+    // Own ship
     const ship = new THREE.Group();
-    const hull = new THREE.Mesh(new THREE.BoxGeometry(14, 4, 48),
-      new THREE.MeshStandardMaterial({ color: 0x2b3a4a }));
-    hull.position.y = 3;
-    ship.add(hull);
-
-    const bridge = new THREE.Mesh(new THREE.BoxGeometry(8, 3, 8),
-      new THREE.MeshStandardMaterial({ color: 0x2f3940 }));
-    bridge.position.set(0, 6, 6);
-    ship.add(bridge);
-
-    const redLight = new THREE.Mesh(new THREE.SphereGeometry(0.35),
-      new THREE.MeshBasicMaterial({ color: 0xff0000 }));
-    redLight.position.set(-3, 6, 18);
-    ship.add(redLight);
-
-    const greenLight = new THREE.Mesh(new THREE.SphereGeometry(0.35),
-      new THREE.MeshBasicMaterial({ color: 0x00ff22 }));
-    greenLight.position.set(3, 6, 18);
-    ship.add(greenLight);
-
+    const hull = new THREE.Mesh(new THREE.BoxGeometry(14, 4, 48), new THREE.MeshStandardMaterial({ color: 0x2b3a4a }));
+    hull.position.y = 3; ship.add(hull);
+    const bridge = new THREE.Mesh(new THREE.BoxGeometry(8, 3, 8), new THREE.MeshStandardMaterial({ color: 0x2f3940 }));
+    bridge.position.set(0, 6, 6); ship.add(bridge);
+    const redLight = new THREE.Mesh(new THREE.SphereGeometry(0.35), new THREE.MeshBasicMaterial({ color: 0xff0000 }));
+    redLight.position.set(-3, 6, 18); ship.add(redLight);
+    const greenLight = new THREE.Mesh(new THREE.SphereGeometry(0.35), new THREE.MeshBasicMaterial({ color: 0x00ff22 }));
+    greenLight.position.set(3, 6, 18); ship.add(greenLight);
     scene.add(ship);
 
     // Target ship
     const target = new THREE.Group();
-    const thull = new THREE.Mesh(new THREE.BoxGeometry(12, 3, 36),
-      new THREE.MeshStandardMaterial({ color: 0x5b3a3a }));
-    thull.position.y = 2;
-    target.add(thull);
+    const thull = new THREE.Mesh(new THREE.BoxGeometry(12, 3, 36), new THREE.MeshStandardMaterial({ color: 0x5b3a3a }));
+    thull.position.y = 2; target.add(thull);
+    target.position.set(400, 0, -600);
     scene.add(target);
 
-    const controls = new THREE.OrbitControls(cameraChase, renderer.domElement);
+    // Controls
+    const controls = new OrbitControls(cameraChase, renderer.domElement);
     controls.target.copy(ship.position);
+
+    // Variables
     cameraPOV.position.set(0, 8, 0);
     cameraChase.position.set(0, 20, 60);
-
     let currentView = 'pov';
     let speed = 12;
     let heading = 0;
+    let autopilot = false;
 
-    function animate() {
-      requestAnimationFrame(animate);
-      const delta = 0.02;
+    // Utility
+    const knToMs = k => k * 0.514444;
+    function relativeCPA(us, vs) {
+      const rx = vs.x - us.x, rz = vs.z - us.z;
+      const vx = vs.vx - us.vx, vz = vs.vz - us.vz;
+      const v2 = vx * vx + vz * vz;
+      if (v2 === 0) return { cpa: Math.hypot(rx, rz), tcpa: 0 };
+      const tca = -(rx * vx + rz * vz) / v2;
+      const tcpa = Math.max(0, tca);
+      const cpx = rx + vx * tcpa, cpz = rz + vz * tcpa;
+      return { cpa: Math.hypot(cpx, cpz), tcpa: tcpa };
+    }
 
-      ship.position.x += Math.sin(heading) * speed * delta;
-      ship.position.z += Math.cos(heading) * speed * delta;
+    // Animation loop
+    let last = performance.now();
+    function animate(now) {
+      const dt = (now - last) / 1000; last = now;
 
-      target.position.x += Math.sin(heading + Math.PI / 6) * speed * delta * 0.5;
-      target.position.z += Math.cos(heading + Math.PI / 6) * speed * delta * 0.5;
+      const uh = heading;
+      const uvx = Math.sin(uh) * knToMs(speed);
+      const uvz = Math.cos(uh) * knToMs(speed);
+      ship.position.x += uvx * dt;
+      ship.position.z += uvz * dt;
+
+      const th = heading + Math.PI / 6;
+      const tvx = Math.sin(th) * knToMs(speed * 0.8);
+      const tvz = Math.cos(th) * knToMs(speed * 0.8);
+      target.position.x += tvx * dt;
+      target.position.z += tvz * dt;
 
       if (currentView === 'chase') {
         controls.update();
@@ -180,24 +198,41 @@
         cameraPOV.lookAt(ship.position.clone().add(new THREE.Vector3(0, 0, 20)));
       }
 
-      renderer.render(scene, currentView === 'chase' ? cameraChase : cameraPOV);
-    }
-    animate();
+      const us = { x: ship.position.x, z: ship.position.z, vx: uvx, vz: uvz };
+      const vs = { x: target.position.x, z: target.position.z, vx: tvx, vz: tvz };
+      const { cpa, tcpa } = relativeCPA(us, vs);
+      const cpaNm = cpa / 1852;
+      const statusEl = document.getElementById('status');
+      if (cpaNm < 0.3 && tcpa < 600) statusEl.innerText = '⚠️ Collision Risk!';
+      else statusEl.innerText = 'Monitoring';
 
-    // UI Interactions
+      renderer.render(scene, currentView === 'chase' ? cameraChase : cameraPOV);
+      requestAnimationFrame(animate);
+    }
+    requestAnimationFrame(animate);
+
+    // === UI Handlers ===
     document.getElementById('viewBtn').onclick = () => {
       currentView = currentView === 'pov' ? 'chase' : 'pov';
       document.getElementById('viewBtn').innerText =
         currentView === 'pov' ? 'Switch to Chase View' : 'Switch to Bridge View';
     };
-
-    document.getElementById('hdLeft').onclick = () => heading -= 0.05;
-    document.getElementById('hdRight').onclick = () => heading += 0.05;
-
-    const speedSlider = document.getElementById('spd');
-    speedSlider.addEventListener('input', () => {
-      speed = Number(speedSlider.value);
+    document.getElementById('hdLeft').onclick = () => { heading -= (5 * Math.PI / 180); };
+    document.getElementById('hdRight').onclick = () => { heading += (5 * Math.PI / 180); };
+    document.getElementById('spd').addEventListener('input', e => {
+      speed = Number(e.target.value);
       document.getElementById('spdVal').innerText = `${speed} kn`;
+    });
+    document.getElementById('autoBtn').onclick = () => {
+      autopilot = !autopilot;
+      document.getElementById('autoBtn').innerText = autopilot ? 'On' : 'Off';
+    };
+    window.addEventListener('resize', () => {
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      cameraPOV.aspect = window.innerWidth / window.innerHeight;
+      cameraChase.aspect = window.innerWidth / window.innerHeight;
+      cameraPOV.updateProjectionMatrix();
+      cameraChase.updateProjectionMatrix();
     });
   </script>
 </body>
