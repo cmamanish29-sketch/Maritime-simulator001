@@ -1,280 +1,204 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>SC001 - Night Collision Avoidance</title>
-<style>
-  html,body{height:100%;margin:0;background:#041426;color:#dff6ff;font-family:Inter, system-ui, -apple-system, Roboto, Arial}
-  #container{height:100vh;display:flex;flex-direction:row}
-  #canvas-wrap{flex:1;position:relative;overflow:hidden;background:#02101a}
-  canvas{display:block}
-  /* HUD */
-  .hud{position:absolute;left:14px;top:14px;z-index:20;background:rgba(2,20,30,0.6);padding:10px;border-radius:8px;backdrop-filter:blur(4px)}
-  .hud h3{margin:0 0 6px 0;font-size:16px}
-  .hud .row{display:flex;gap:8px;align-items:center;margin-bottom:6px}
-  .btn{background:#0c6b9a;border:none;color:white;padding:8px 10px;border-radius:6px;cursor:pointer}
-  .btn.secondary{background:#0a3745}
-  .info{font-size:13px;color:#cdeefb}
-  .controls{position:absolute;right:14px;top:14px;background:rgba(0,0,0,0.35);padding:10px;border-radius:8px;z-index:20}
-  .small{font-size:13px;padding:6px 8px}
-  #radarCanvas{width:240px;height:240px;border-radius:8px;background:#001f25;display:block}
-  #log{position:absolute;left:14px;bottom:14px;z-index:20;background:rgba(0,0,0,0.35);padding:8px;border-radius:8px;max-height:200px;overflow:auto;font-size:12px}
-  #debrief{position:absolute;bottom:14px;right:14px;z-index:20;background:rgba(3,18,26,0.75);padding:10px;border-radius:8px;max-width:320px;font-size:13px}
-  footer{position:fixed;left:0;right:0;bottom:0;padding:8px 12px;background:#01121a;color:#8fe6ff;font-size:13px;text-align:center}
-  label{font-size:13px;color:#bfe9ff;margin-right:6px}
-  input[type=range]{width:140px}
-  .status{margin-top:6px;font-size:13px}
-</style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SC001 - Night Collision Avoidance</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: 'Segoe UI', sans-serif;
+      background-color: #041622;
+      color: #e0f0f5;
+      overflow: hidden;
+    }
+
+    #hud {
+      position: absolute;
+      top: 15px;
+      left: 15px;
+      padding: 15px;
+      background: rgba(0, 0, 0, 0.5);
+      border-radius: 10px;
+      box-shadow: 0 0 10px #002d40;
+    }
+
+    button, input[type="range"] {
+      margin: 4px;
+      padding: 6px 10px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+
+    button {
+      background: #0a4560;
+      color: #fff;
+      transition: background 0.2s;
+    }
+
+    button:hover {
+      background: #0d6286;
+    }
+
+    #three-root {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: -1;
+    }
+
+    #radar {
+      position: absolute;
+      top: 15px;
+      right: 15px;
+      width: 200px;
+      height: 200px;
+      background: rgba(0, 50, 60, 0.3);
+      border-radius: 10px;
+      border: 2px solid #0d6286;
+    }
+
+    #footer {
+      position: absolute;
+      bottom: 10px;
+      left: 20px;
+      font-size: 12px;
+      color: #88b9c2;
+    }
+  </style>
 </head>
 <body>
-<div id="container">
-  <div id="canvas-wrap">
-    <div class="hud" id="topLeft">
-      <h3>SC001 - Night Collision Avoidance</h3>
-      <div class="row">
-        <button class="btn" id="viewToggle">Switch to Chase View</button>
-        <button class="btn secondary" id="radarToggle">Toggle Radar</button>
-      </div>
-      <div class="row">
-        <label>Heading:</label>
-        <button class="btn small" id="hdLeft">◀︎5°</button>
-        <button class="btn small" id="hdRight">5°▶︎</button>
-        <div style="width:10px"></div>
-        <label>Speed:</label>
-        <input id="speedRange" type="range" min="4" max="18" step="0.5" value="12">
-        <span id="speedVal" class="info">12 kn</span>
-      </div>
-      <div class="row">
-        <label>Autopilot:</label>
-        <button class="btn small" id="apToggle">Off</button>
-      </div>
-      <div class="status info" id="statusLine">Status: <strong>Monitoring</strong></div>
-    </div>
-
-    <div class="controls" id="rightControls">
-      <canvas id="radarCanvas" width="240" height="240" style="display:block"></canvas>
-    </div>
-
-    <div id="log"><strong>Action Log</strong><br/></div>
-    <div id="debrief"><strong>Debrief</strong><div id="debriefContent">No actions yet.</div></div>
-
-    <!-- Three.js will append its canvas here -->
-    <div id="three-root"></div>
+  <div id="hud">
+    <h2>SC001 - Night Collision Avoidance</h2>
+    <button id="viewBtn">Switch to Chase View</button>
+    <button id="radarBtn">Toggle Radar</button><br />
+    Heading:
+    <button id="hdLeft">&lt;5°</button>
+    <button id="hdRight">5°&gt;</button><br />
+    Speed: <input id="spd" type="range" min="0" max="25" step="1" value="12" />
+    <span id="spdVal">12 kn</span><br />
+    Autopilot: <button id="autoBtn">Off</button><br />
+    Status: <strong id="status">Monitoring</strong>
   </div>
-</div>
 
-<footer>Prototype simulator • Host on GitHub Pages or Netlify • Integrate with LMS/Glide via link</footer>
+  <div id="radar"></div>
+  <div id="three-root"></div>
+  <div id="footer">
+    Prototype simulator • Host on GitHub Pages or Netlify • Integrate with LMS/Glide via link
+  </div>
 
-<!-- MODULES: Three.js and OrbitControls via unpkg (module) -->
-<script type="module">
-import * as THREE from 'https://unpkg.com/three@0.152.2/build/three.module.js';
-import { OrbitControls } from 'https://unpkg.com/three@0.152.2/examples/jsm/controls/OrbitControls.js';
+  <!-- Load Three.js & OrbitControls from CDN -->
+  <script src="https://unpkg.com/three@0.152.2/build/three.min.js"></script>
+  <script src="https://unpkg.com/three@0.152.2/examples/js/controls/OrbitControls.js"></script>
 
-// Scene setup
-const root = document.getElementById('three-root');
-const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x041622);
+  <script>
+    const root = document.getElementById('three-root');
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x041622);
 
-// Renderer
-const renderer = new THREE.WebGLRenderer({antialias:true});
-renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.setPixelRatio(window.devicePixelRatio || 1);
-root.appendChild(renderer.domElement);
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    root.appendChild(renderer.domElement);
 
-// Cameras
-const cameraPOV = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 5000);
-const cameraChase = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 5000);
-let activeCam = cameraPOV;
+    const cameraPOV = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 5000);
+    const cameraChase = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 5000);
+    let activeCam = cameraPOV;
 
-// Lights
-const hemi = new THREE.HemisphereLight(0xf0f8ff, 0x080820, 0.6); scene.add(hemi);
-const moon = new THREE.DirectionalLight(0xcfeefe, 0.8); moon.position.set(-100,200,100); scene.add(moon);
+    const hemiLight = new THREE.HemisphereLight(0xf0f8ff, 0x080820, 0.6);
+    scene.add(hemiLight);
 
-// Ocean plane
-const oceanGeom = new THREE.PlaneGeometry(5000,5000,64,64);
-const oceanMat = new THREE.MeshStandardMaterial({color:0x012633,metalness:0.1,roughness:0.8});
-const ocean = new THREE.Mesh(oceanGeom, oceanMat); ocean.rotation.x = -Math.PI/2; scene.add(ocean);
+    const dirLight = new THREE.DirectionalLight(0xcfeefe, 0.8);
+    dirLight.position.set(-100, 200, 100);
+    scene.add(dirLight);
 
-// Clock
-const clock = new THREE.Clock();
+    // Ocean plane
+    const oceanGeom = new THREE.PlaneGeometry(5000, 5000, 64, 64);
+    const oceanMat = new THREE.MeshStandardMaterial({ color: 0x012633, metalness: 0.1, roughness: 0.8 });
+    const ocean = new THREE.Mesh(oceanGeom, oceanMat);
+    ocean.rotation.x = -Math.PI / 2;
+    scene.add(ocean);
 
-// Ship (user)
-const ship = new THREE.Group();
-const hull = new THREE.Mesh(new THREE.BoxGeometry(14,4,48), new THREE.MeshStandardMaterial({color:0x2b3a4a}));
-hull.position.y = 3; ship.add(hull);
-const bridgeBox = new THREE.Mesh(new THREE.BoxGeometry(8,3,8), new THREE.MeshStandardMaterial({color:0x2f3940}));
-bridgeBox.position.set(0,6,6); ship.add(bridgeBox);
-const redLight = new THREE.Mesh(new THREE.SphereGeometry(0.35), new THREE.MeshBasicMaterial({color:0xff0000}));
-redLight.position.set(-3,6,18); ship.add(redLight);
-const greenLight = new THREE.Mesh(new THREE.SphereGeometry(0.35), new THREE.MeshBasicMaterial({color:0x00ff22}));
-greenLight.position.set(3,6,18); ship.add(greenLight);
-scene.add(ship);
+    // Ship
+    const ship = new THREE.Group();
+    const hull = new THREE.Mesh(new THREE.BoxGeometry(14, 4, 48),
+      new THREE.MeshStandardMaterial({ color: 0x2b3a4a }));
+    hull.position.y = 3;
+    ship.add(hull);
 
-// Target ship
-const target = new THREE.Group();
-const thull = new THREE.Mesh(new THREE.BoxGeometry(12,3,36), new THREE.MeshStandardMaterial({color:0x5b3a3a}));
-thull.position.y = 2; target.add(thull);
-const tbridge = new THREE.Mesh(new THREE.BoxGeometry(6,2,6), new THREE.MeshStandardMaterial({color:0x3a4a4a}));
-tbridge.position.set(0,4,7); target.add(tbridge);
-scene.add(target);
+    const bridge = new THREE.Mesh(new THREE.BoxGeometry(8, 3, 8),
+      new THREE.MeshStandardMaterial({ color: 0x2f3940 }));
+    bridge.position.set(0, 6, 6);
+    ship.add(bridge);
 
-// Initial states
-let userState = {x:0, z:0, headingDeg:90, speedKn:12};
-let targetState = {x:-600, z:-420, headingDeg:55, speedKn:14};
+    const redLight = new THREE.Mesh(new THREE.SphereGeometry(0.35),
+      new THREE.MeshBasicMaterial({ color: 0xff0000 }));
+    redLight.position.set(-3, 6, 18);
+    ship.add(redLight);
 
-// Converters
-const knToMs = k => k * 0.514444;
-const degToRad = d => d * Math.PI/180;
+    const greenLight = new THREE.Mesh(new THREE.SphereGeometry(0.35),
+      new THREE.MeshBasicMaterial({ color: 0x00ff22 }));
+    greenLight.position.set(3, 6, 18);
+    ship.add(greenLight);
 
-// Camera setup
-cameraPOV.position.set(0,8,14); cameraPOV.lookAt(0,6,40);
-cameraChase.position.set(-120,60,-160); cameraChase.lookAt(0,6,0);
-const controls = new OrbitControls(cameraChase, renderer.domElement);
-controls.enablePan = false; controls.minDistance = 20; controls.maxDistance = 800;
+    scene.add(ship);
 
-// DOM refs
-const hdLeft = document.getElementById('hdLeft');
-const hdRight = document.getElementById('hdRight');
-const speedRange = document.getElementById('speedRange');
-const speedVal = document.getElementById('speedVal');
-const apToggle = document.getElementById('apToggle');
-const viewToggle = document.getElementById('viewToggle');
-const radarToggle = document.getElementById('radarToggle');
-const logDiv = document.getElementById('log');
-const statusLine = document.getElementById('statusLine');
-const radarCanvas = document.getElementById('radarCanvas');
-const debriefContent = document.getElementById('debriefContent');
+    // Target ship
+    const target = new THREE.Group();
+    const thull = new THREE.Mesh(new THREE.BoxGeometry(12, 3, 36),
+      new THREE.MeshStandardMaterial({ color: 0x5b3a3a }));
+    thull.position.y = 2;
+    target.add(thull);
+    scene.add(target);
 
-let radarOn = true;
-let autopilot = false;
+    const controls = new THREE.OrbitControls(cameraChase, renderer.domElement);
+    controls.target.copy(ship.position);
+    cameraPOV.position.set(0, 8, 0);
+    cameraChase.position.set(0, 20, 60);
 
-// UI wiring
-hdLeft.onclick = ()=> { userState.headingDeg = (userState.headingDeg - 5 + 360) % 360; logAction('Heading -5°'); }
-hdRight.onclick = ()=> { userState.headingDeg = (userState.headingDeg + 5) % 360; logAction('Heading +5°'); }
-speedRange.oninput = ()=> { userState.speedKn = parseFloat(speedRange.value); speedVal.textContent = userState.speedKn + ' kn'; }
-apToggle.onclick = ()=> { autopilot = !autopilot; apToggle.textContent = autopilot ? 'On' : 'Off'; logAction('Autopilot ' + (autopilot ? 'On':'Off')); }
-viewToggle.onclick = ()=> { if(activeCam===cameraPOV){ activeCam = cameraChase; viewToggle.textContent='Switch to POV View'; } else { activeCam = cameraPOV; viewToggle.textContent='Switch to Chase View'; } logAction('View switched'); }
-radarToggle.onclick = ()=> { radarOn = !radarOn; radarCanvas.style.display = radarOn ? 'block' : 'none'; logAction('Radar ' + (radarOn? 'On':'Off')); }
+    let currentView = 'pov';
+    let speed = 12;
+    let heading = 0;
 
-// Logging helper
-function logAction(txt){ const t = new Date().toLocaleTimeString(); logDiv.insertAdjacentHTML('beforeend', `<div>${t} • ${txt}</div>`); logDiv.scrollTop = logDiv.scrollHeight; }
+    function animate() {
+      requestAnimationFrame(animate);
+      const delta = 0.02;
 
-// CPA calc
-function relativeCPA(us, vs){
-  const rx = vs.x - us.x; const rz = vs.z - us.z;
-  const vx = vs.vx - us.vx; const vz = vs.vz - us.vz;
-  const v2 = vx*vx + vz*vz;
-  if(v2 === 0) return {cpa: Math.hypot(rx,rz), tcpa: 0};
-  const tca = -(rx*vx + rz*vz) / v2;
-  const tcpa = Math.max(0, tca);
-  const cpx = rx + vx*tcpa; const cpz = rz + vz*tcpa;
-  return {cpa: Math.hypot(cpx,cpz), tcpa: tcpa};
-}
+      ship.position.x += Math.sin(heading) * speed * delta;
+      ship.position.z += Math.cos(heading) * speed * delta;
 
-// Animation loop
-let last = performance.now();
-function animate(now){
-  const dt = (now - last)/1000; last = now;
-  const t = clock.getElapsedTime();
-  const position = ocean.geometry.attributes.position;
-  for(let i=0;i<position.count;i++){ const y = Math.sin(i*0.05 + t*0.6)*0.15; position.setY(i, y); }
-  position.needsUpdate = true; ocean.geometry.computeVertexNormals();
+      target.position.x += Math.sin(heading + Math.PI / 6) * speed * delta * 0.5;
+      target.position.z += Math.cos(heading + Math.PI / 6) * speed * delta * 0.5;
 
-  const uh = degToRad(userState.headingDeg);
-  const uvx = Math.cos(uh) * knToMs(userState.speedKn);
-  const uvz = Math.sin(uh) * knToMs(userState.speedKn) * -1;
-  userState.vx = uvx; userState.vz = uvz;
-  userState.x += uvx * dt; userState.z += uvz * dt;
-  ship.position.set(userState.x, 0, userState.z);
-  ship.rotation.y = -uh + Math.PI/2;
+      if (currentView === 'chase') {
+        controls.update();
+      } else {
+        cameraPOV.position.copy(ship.position).add(new THREE.Vector3(0, 8, 0));
+        cameraPOV.lookAt(ship.position.clone().add(new THREE.Vector3(0, 0, 20)));
+      }
 
-  const th = degToRad(targetState.headingDeg);
-  const tvx = Math.cos(th) * knToMs(targetState.speedKn);
-  const tvz = Math.sin(th) * knToMs(targetState.speedKn) * -1;
-  targetState.vx = tvx; targetState.vz = tvz;
-  targetState.x += tvx * dt; targetState.z += tvz * dt;
-  target.position.set(targetState.x, 0, targetState.z);
-  target.rotation.y = -th + Math.PI/2;
+      renderer.render(scene, currentView === 'chase' ? cameraChase : cameraPOV);
+    }
+    animate();
 
-  cameraPOV.position.set(userState.x + 0, 8, userState.z + 14);
-  const lookAtX = userState.x + Math.cos(uh)*200;
-  const lookAtZ = userState.z - Math.sin(uh)*200;
-  cameraPOV.lookAt(lookAtX, 6, lookAtZ);
+    // UI Interactions
+    document.getElementById('viewBtn').onclick = () => {
+      currentView = currentView === 'pov' ? 'chase' : 'pov';
+      document.getElementById('viewBtn').innerText =
+        currentView === 'pov' ? 'Switch to Chase View' : 'Switch to Bridge View';
+    };
 
-  cameraChase.position.lerp(new THREE.Vector3(userState.x -120, 60, userState.z -160), 0.05);
-  cameraChase.lookAt(userState.x, 6, userState.z);
+    document.getElementById('hdLeft').onclick = () => heading -= 0.05;
+    document.getElementById('hdRight').onclick = () => heading += 0.05;
 
-  const us = {x:userState.x, z:userState.z, vx:userState.vx, vz:userState.vz};
-  const vs = {x:targetState.x, z:targetState.z, vx:targetState.vx, vz:targetState.vz};
-  const cpaInfo = relativeCPA(us, vs);
-  const cpaNm = cpaInfo.cpa / 1852;
-  const tcpaSec = cpaInfo.tcpa;
-  const warning = (cpaNm < 0.3 && tcpaSec < 600);
-  statusLine.innerHTML = `Status: <strong>${warning? '<span style="color:#ffb3b3">Collision Risk!</span>':'Monitoring'}</strong> • CPA: ${cpaNm.toFixed(2)} nm • TCPA: ${Math.round(tcpaSec)} s`;
-  statusLine.style.color = warning ? '#ffb3b3' : '#bfe8ff';
-
-  if(radarOn) drawRadar(cpaInfo);
-  renderer.render(scene, activeCam === cameraPOV ? cameraPOV : cameraChase);
-  requestAnimationFrame(animate);
-}
-requestAnimationFrame(animate);
-
-// Radar canvas
-const rc = document.getElementById('radarCanvas');
-const rctx = rc.getContext('2d');
-function drawRadar(cpaInfo){
-  const W = rc.width, H = rc.height;
-  rctx.clearRect(0,0,W,H);
-  rctx.fillStyle = '#001826'; rctx.fillRect(0,0,W,H);
-  rctx.strokeStyle = 'rgba(255,255,255,0.06)';
-  rctx.beginPath(); rctx.arc(W/2,H/2,40,0,2*Math.PI); rctx.stroke();
-  rctx.beginPath(); rctx.arc(W/2,H/2,80,0,2*Math.PI); rctx.stroke();
-  rctx.beginPath(); rctx.arc(W/2,H/2,120,0,2*Math.PI); rctx.stroke();
-  const t = Date.now()/1000; const angle = (t*0.6)%(2*Math.PI);
-  rctx.save(); rctx.translate(W/2,H/2); rctx.rotate(angle);
-  const grad = rctx.createLinearGradient(0,0, W/2,0); grad.addColorStop(0,'rgba(0,200,120,0.35)'); grad.addColorStop(1,'rgba(0,200,120,0.02)');
-  rctx.fillStyle = grad; rctx.fillRect(0,-1, W/2, 2); rctx.restore();
-  const dx = targetState.x - userState.x; const dz = targetState.z - userState.z;
-  const dist = Math.hypot(dx,dz); const maxRange = 5000; const radius = Math.min(120, (dist / maxRange) * 120);
-  const bearing = Math.atan2(dz, dx);
-  const bx = W/2 + radius * Math.cos(bearing); const by = H/2 + radius * Math.sin(bearing);
-  rctx.fillStyle = '#a6ffca'; rctx.beginPath(); rctx.arc(bx, by, 6, 0, 2*Math.PI); rctx.fill();
-  if(cpaInfo){ const cpaNm = cpaInfo.cpa/1852; rctx.fillStyle = cpaInfo.cpa/1852 < 0.3 ? '#ff9999' : '#99d6ff'; rctx.font = '12px Arial'; rctx.fillText(`CPA ${cpaNm.toFixed(2)} nm`, 8, 18); }
-}
-
-// Actions capture
-let actions = [];
-function captureAction(type, details){ const ts = new Date().toISOString(); actions.push({type, details, ts}); logAction(`${type} • ${JSON.stringify(details)}`); }
-hdLeft.addEventListener('click', ()=> captureAction('heading_adjust', {delta:-5, newHeading:userState.headingDeg}));
-hdRight.addEventListener('click', ()=> captureAction('heading_adjust', {delta:+5, newHeading:userState.headingDeg}));
-speedRange.addEventListener('change', ()=> captureAction('speed_set', {speed:userState.speedKn}));
-
-// Debrief generator
-function generateDebrief(){
-  const us = {x:userState.x, z:userState.z, vx:userState.vx, vz:userState.vz};
-  const vs = {x:targetState.x, z:targetState.z, vx:targetState.vx, vz:targetState.vz};
-  const c = relativeCPA(us,vs);
-  const cpaNm = (c.cpa/1852).toFixed(2); const tcpa = Math.round(c.tcpa);
-  let text = `Final CPA: ${cpaNm} nm • TCPA: ${tcpa} s.<br/>Actions taken: ${actions.length}.<br/><br/>Recommendations:<br/>`;
-  if(c.cpa/1852 < 0.3) text += '- Near miss: consider earlier action and proactive communication.<br/>';
-  else text += '- Good separation maintained. Continue vigilant watch and confirm via VHF if unsure.<br/>';
-  text += '<br/>Scenario reference: COLREG Rule 13 (overtaking) and Rule 5 (look-out).';
-  document.getElementById('debriefContent').innerHTML = text;
-}
-
-// Keybinds
-window.addEventListener('keydown', e=>{ if(e.key === 'ArrowLeft') { userState.headingDeg = (userState.headingDeg - 5 + 360) % 360; captureAction('heading_adjust',{delta:-5}); }
-  if(e.key === 'ArrowRight') { userState.headingDeg = (userState.headingDeg + 5) % 360; captureAction('heading_adjust',{delta:+5}); }
-  if(e.key === 'r') { generateDebrief(); logAction('Debrief generated'); } });
-
-// Resize handler
-window.addEventListener('resize', ()=> { renderer.setSize(window.innerWidth, window.innerHeight); cameraPOV.aspect = window.innerWidth/window.innerHeight; cameraPOV.updateProjectionMatrix(); cameraChase.aspect = window.innerWidth/window.innerHeight; cameraChase.updateProjectionMatrix(); });
-
-// initial log
-logAction('Simulator started');
-document.getElementById('debrief').addEventListener('dblclick', ()=> { generateDebrief(); logAction('Debrief (dblclick)'); });
-
-</script>
+    const speedSlider = document.getElementById('spd');
+    speedSlider.addEventListener('input', () => {
+      speed = Number(speedSlider.value);
+      document.getElementById('spdVal').innerText = `${speed} kn`;
+    });
+  </script>
 </body>
 </html>
